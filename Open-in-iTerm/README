@@ -1,0 +1,6 @@
+This script is based upon the one found at http://snippets.dzone.com/posts/show/961.  However, that script has several issues that I wanted to resolve:
+
+* It choked if iTerm was running but had no open terminals.
+* It would open a spurious new tab in iTerm wasn't running before it was called.
+
+This modified version fixes those issues, and seems to work well for me.
