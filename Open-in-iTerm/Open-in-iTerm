@@ -1,0 +1,81 @@
+-- cd to the current finder window folder in iTerm. Or drag a folder onto this script to cd to that folder in iTerm.
+-- found this script in the comments of this article: http://www.macosxhints.com/article.php?story=20050924210643297
+
+-- Instructions for use:
+-- paste this script into Script Editor and save as an application to ~/Library/Scripts/Applications/Finder/cd to in iTerm
+-- run via the AppleScript Menu item (http://www.apple.com/applescript/scriptmenu/)
+-- Or better yet, Control-click and drag it to the top of a finder window so it appears in every finder window.
+-- Activate it by clicking on it or dragging a folder onto it.
+
+-- Another nice touch is to give the saved script the same icon as iTerm.
+-- To do this, in the finder, Get info (Command-I) of both iTerm and this saved script.
+-- Click the iTerm icon (it will highlight blue) and copy it by pressing Comand-C.
+-- Click on this script's icon and paste by pressing Command-V.
+
+-- Another way to give it the same icon as iTerm is to save the script as an application bundle (instead of an application),
+--  then copy the icon by entering these commands in iTerm:
+-- $ cd ~/Library/Scripts/Applications/Finder/cd\ to\ in\ iTerm.app/Contents/Resources/
+-- $ rm droplet.icns
+-- $ cp /Applications/iTerm.app/Contents/Resources/iTerm.icns droplet.icns
+-- $ touch ~/Library/Scripts/Applications/Finder/cd\ to\ in\ iTerm.app
+
+-- script was opened by click in toolbar
+on run
+    tell application "Finder"
+        try
+            set currFolder to (folder of the front window as string)
+        on error
+            set currFolder to (path to desktop folder as string)
+        end try
+    end tell
+    CD_to(currFolder, false)
+end run
+
+-- script run by draging file/folder to icon
+on open (theList)
+    set newWindow to false
+    repeat with thePath in theList
+        set thePath to thePath as string
+        if not (thePath ends with ":") then
+            set x to the offset of ":" in (the reverse of every character of thePath) as string
+            set thePath to (characters 1 thru -(x) of thePath) as string
+        end if
+        CD_to(thePath, newWindow)
+        set newWindow to true -- create window for any other files/folders
+    end repeat
+    return
+end open
+
+-- cd to the desired directory in iterm
+on CD_to(theDir, newWindow)
+    set theDir to quoted form of POSIX path of theDir as string
+
+    tell application "System Events"
+        set instances to count (every process whose name is "iTerm")
+    end tell
+
+    tell application "iTerm"
+        activate
+
+        -- get hold of terminal
+        if (the first terminal exists) then
+            set curTerminal to (the first terminal)
+        else
+            set curTerminal to (make new terminal)
+        end if
+
+        -- if iTerm was not already running, a session was automatically created
+        if (instances is not 0) then
+            tell curTerminal
+                launch session "Default Session"
+            end tell
+        end if
+
+        -- send the cd command
+        tell curTerminal
+            tell the last session
+                write text "cd " & theDir
+            end tell
+        end tell
+    end tell
+end CD_to
