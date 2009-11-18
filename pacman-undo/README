@@ -1,9 +1,0 @@
-This ruby script provides the facility to roll back package changes made with Pacman on ArchLinux.  It is intended to be used as follows:
-
-* The script presents the user with a temporary file in the default editor (set EDITOR, or vim by default).  The file contains a list of actions performed by Pacman, grouped into actions that were perfored together.
-* The user deletes all lines except those describing the actions he wants to roll back.  In Vim, it is particularly easy to delete the large number of unwanted lines using SHIFT-V to enter Visual-Line mode, then CTRL+G to skip to the end of the file, and finally 'd' to delete all the highlighted lines.
-* The user saves the file and quits the editor, and the script generates the commands required to roll back the relevant actions.  The user is prompted before any action is taken.
-
-It is sometimes important to separate groups of actions to ensure that no problems arise with missing dependencies or file conflicts during the roll-back process.  Sets of actions can be separated this way by leaving a blank line or one of the generated lines of hashes between them.  The script will prompt you one for each set of such actions.
-
-If the user does not modify the file, no action is taken.
