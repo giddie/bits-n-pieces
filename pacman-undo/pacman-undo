@@ -21,8 +21,7 @@ require 'tempfile'
 
 PacmanLogFilePath = '/var/log/pacman.log'
 PacmanCachePath = '/var/cache/pacman/pkg'
-MirrorListFile = '/etc/pacman.d/mirrorlist'
-PackageExtension = 'pkg.tar.gz'
+PackageExtension = 'pkg.tar.xz'
 
 if not File.exists?(PacmanLogFilePath)
   warn "Unable to find the Pacman log file at '#{PacmanLogFilePath}'."
@@ -32,17 +31,14 @@ end
 class Config
   def self.architecture
     if not @architecture
-      @architecture = 'i686'
       # Scan through the mirror list file until we find one line
       # containing the architecture
-      File.open(MirrorListFile) do |file|
-        file.each_line do |line|
-          matches = line.match('/os/(.*)$').to_a
-          if not matches.empty?
-            @architecture = matches[1]
-            break
-          end
-        end
+      test_pkg = Dir.glob(PacmanCachePath + '/*').first
+      if test_pkg.nil?
+        @architecture = 'i686'
+      else
+        filename = File.basename(test_pkg)
+        @architecture = filename.split('-')[-1].gsub(/\..*/, '')
       end
     end
     @architecture
