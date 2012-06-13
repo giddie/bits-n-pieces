@@ -1,0 +1,134 @@
+#!/usr/bin/env ruby
+
+# This script takes two arguments: the path to the old Foswiki installation, and
+# the path to the new one.  The intention is to copy all the topics from the
+# old Wiki into the new one, without clobbering any of the already-existing
+# topics that should be merged with greater care.
+#
+# This script should always "do the right thing", and nothing bad will happen if
+# you run it several times.  It will:
+#
+# 1) Copy everything in the non-default Webs to the new installation.
+# 2) Copy topics from the default webs that do not yet exist into the new
+#    installation.
+# 3) Display a list of those topics that have been modified in the default webs
+#    of the old installation, but also exist in the new installation with a
+#    different timestamp.  These are the topics that you will need to merge
+#    carefully, but there should be relatively few of these.
+
+trap :INT, :EXIT
+
+require 'fileutils'
+require 'find'
+
+# Only top-level webs should go here
+DEFAULT_WEBS = %w(Main Sandbox System Trash TWiki)
+NO_COPY_WEBS = %w(Trash)
+
+# Sanity checking of parameters
+if ARGV.count != 2
+  STDERR.puts "Usage:\n  #{File.basename($0)} <old-foswiki> <new-foswiki>"
+  exit 1
+end
+old_foswiki, new_foswiki = ARGV[0..1].map {|path| path.sub(/\/+$/, '')}
+[old_foswiki, new_foswiki].each do |dir|
+  if not File.exists?(File.join(dir, 'foswiki_httpd_conf.txt'))
+    STDERR.puts "#{dir} doesn't seem to be a Foswiki installation."
+    exit 1
+  end
+end
+if not File.owned?(new_foswiki + '/data')
+  STDERR.puts "You need to run this tool as the user that owns the Foswiki " +
+              "installation."
+  exit 1
+end
+
+# Be *extra* sure that the user got the parameters the right way round.
+puts "OLD Foswiki: #{old_foswiki}"
+puts "NEW Foswiki: #{new_foswiki}"
+print 'Is this correct? (y / yes) '
+if not %w(y yes).include?(STDIN.gets.chomp.strip.downcase)
+  STDERR.puts "No action was taken."
+  exit
+end
+puts
+
+# Copy the non-default webs
+non_default_webs = Dir.glob(old_foswiki + '/data/*').select {|path|
+  basename = File.basename(path)
+  File.directory?(path) && basename[0] != '_' &&
+    ![DEFAULT_WEBS + NO_COPY_WEBS].include?(basename)
+}
+if non_default_webs.empty?
+  puts "No non-default webs to copy."
+else
+  puts "Coping non-default webs:"
+  non_default_webs.each do |source_web|
+    relative_web = source_web[(old_foswiki.length + 6)..-1]
+    print "| #{relative_web}"
+    %w(data pub).each do |dir|
+      from = File.join(old_foswiki, dir, relative_web)
+      to = File.join(new_foswiki, dir, relative_web)
+      Process.wait(Process.spawn("cp -af #{from} #{to}"))
+    end
+    puts
+  end
+end
+puts
+
+def pretty_topic_name(path)
+  path[0..-5].gsub('/', '.')
+end
+
+# In the default webs, we should only copy those topics that have been modified,
+# and which don't yet exist in the new installation. All the topics with RCS
+# files have been modified in the old Wiki.
+safe_to_copy = Array.new
+need_manual_merge = Array.new
+(DEFAULT_WEBS - NO_COPY_WEBS).each do |web|
+  Find.find(old_foswiki + "/data/#{web}/") do |path|
+    if path =~ /,v$/
+      topic = path[(old_foswiki.length + 6)..-3]
+      # Any of the modified topics that are present in the new installation
+      # will need to be merged manually. We exclude those that have an (almost)
+      # identical mtime (within 1 second; cp -a isn't perfect, apparently).
+      if File.exists?(new_foswiki + "/data/#{topic}")
+        mtimes = [old_foswiki, new_foswiki].map {|foswiki|
+          File.mtime(foswiki + "/data/#{topic}")
+        }
+        need_manual_merge << topic  if (mtimes[0] - mtimes[1]).abs > 1
+      else
+        safe_to_copy << topic
+      end
+    end
+  end
+end
+if safe_to_copy.empty?
+  puts "No safe topics to copy from default webs."
+else
+  puts "Copying safe topics from default webs:"
+  safe_to_copy.each do |topic|
+    print "| #{pretty_topic_name(topic)}"
+    %w(data pub).each do |dir|
+      ['', ',v'].each do |extension|
+        from = File.join(old_foswiki, dir, topic + extension)
+        if File.exists?(from)   # There may not be an entry in pub
+          to = File.join(new_foswiki, dir, File.dirname(topic))
+          FileUtils.mkdir_p(to)
+          Process.wait(Process.spawn("cp -af #{from} #{to}"))
+        end
+      end
+    end
+    puts
+  end
+end
+puts
+
+if not need_manual_merge.empty?
+  puts <<END + "\n"
+The following topics from the default webs appear to have been modified in the
+old Wiki, but are already present in the new Wiki. You will need to merge these
+manually.
+END
+  puts need_manual_merge.map {|x| "| #{pretty_topic_name(x)}\n"}
+end
