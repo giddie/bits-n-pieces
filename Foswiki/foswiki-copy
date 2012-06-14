@@ -30,7 +30,7 @@ if ARGV.count != 2
   STDERR.puts "Usage:\n  #{File.basename($0)} <old-foswiki> <new-foswiki>"
   exit 1
 end
-old_foswiki, new_foswiki = ARGV[0..1].map {|path| path.sub(/\/+$/, '')}
+old_foswiki, new_foswiki = ARGV[0..1].map {|path| File.expand_path(path) }
 [old_foswiki, new_foswiki].each do |dir|
   if not File.exists?(File.join(dir, 'foswiki_httpd_conf.txt'))
     STDERR.puts "#{dir} doesn't seem to be a Foswiki installation."
@@ -44,6 +44,7 @@ if not File.owned?(new_foswiki + '/data')
 end
 
 # Be *extra* sure that the user got the parameters the right way round.
+puts
 puts "OLD Foswiki: #{old_foswiki}"
 puts "NEW Foswiki: #{new_foswiki}"
 print 'Is this correct? (y / yes) '
@@ -57,7 +58,7 @@ puts
 non_default_webs = Dir.glob(old_foswiki + '/data/*').select {|path|
   basename = File.basename(path)
   File.directory?(path) && basename[0] != '_' &&
-    ![DEFAULT_WEBS + NO_COPY_WEBS].include?(basename)
+    !(DEFAULT_WEBS + NO_COPY_WEBS).include?(basename)
 }
 if non_default_webs.empty?
   puts "No non-default webs to copy."
@@ -129,6 +130,13 @@ if not need_manual_merge.empty?
 The following topics from the default webs appear to have been modified in the
 old Wiki, but are already present in the new Wiki. You will need to merge these
 manually.
+
+#{need_manual_merge.map {|x| "| #{pretty_topic_name(x)}"}.join("\n")}
+
+WARNING: Ensure that manually-copied topics have an RCS file (ending in ',v') in
+         the new installation. If they do not, this script will in future
+         assume it's an unmodified default topic, and will not copy it to a new
+         installation. If necessary, force a new revision of the topic via the
+         web interface.
 END
-  puts need_manual_merge.map {|x| "| #{pretty_topic_name(x)}\n"}
 end
