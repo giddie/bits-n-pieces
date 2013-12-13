@@ -110,15 +110,18 @@ else
   puts "Copying safe topics from default webs:"
   safe_to_copy.each do |topic|
     print "| #{pretty_topic_name(topic)}"
-    %w(data pub).each do |dir|
-      ['', ',v'].each do |extension|
-        from = File.join(old_foswiki, dir, topic + extension)
-        if File.exists?(from)   # There may not be an entry in pub
-          to = File.join(new_foswiki, dir, File.dirname(topic))
-          FileUtils.mkdir_p(to)
-          Process.wait(Process.spawn("cp -af #{from} #{to}"))
-        end
-      end
+    to_copy = Array.new
+    ['', ',v'].each do |extension|
+      from = File.join(old_foswiki, 'data', topic + extension)
+      to = File.join(new_foswiki, 'data', File.dirname(topic) + '/')
+      to_copy << [from, to]
+    end
+    from = File.join(old_foswiki, 'pub', topic[0..-5])
+    to = File.join(new_foswiki, 'pub', File.dirname(topic) + '/')
+    to_copy << [from, to]  if File.exist?(from)
+    to_copy.each do |from, to|
+      FileUtils.mkdir_p(to)
+      Process.wait(Process.spawn("cp -af #{from} #{to}"))
     end
     puts
   end
