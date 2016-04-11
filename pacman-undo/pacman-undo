@@ -19,26 +19,23 @@
 require 'time'
 require 'tempfile'
 
-PacmanLogFilePath = '/var/log/pacman.log'
-PacmanCachePath = '/var/cache/pacman/pkg'
-PackageExtension = 'pkg.tar.xz'
+PACMAN_CONFIG_PATH = '/etc/pacman.conf'
+PACMAN_LOG_FILE_PATH = '/var/log/pacman.log'
+PACMAN_CACHE_PATH = '/var/cache/pacman/pkg'
+PACKAGE_EXTENSION = 'pkg.tar.xz'
 
-if not File.exists?(PacmanLogFilePath)
-  warn "Unable to find the Pacman log file at '#{PacmanLogFilePath}'."
+if not File.exists?(PACMAN_LOG_FILE_PATH)
+  warn "Unable to find the Pacman log file at '#{PACMAN_LOG_FILE_PATH}'."
   exit 1
 end
 
 class Configuration
   def self.architecture
-    if not @architecture
-      # Scan through the mirror list file until we find one line
-      # containing the architecture
-      test_pkg = Dir.glob(PacmanCachePath + '/*').first
-      if test_pkg.nil?
-        @architecture = 'i686'
-      else
-        filename = File.basename(test_pkg)
-        @architecture = filename.split('-')[-1].gsub(/\..*/, '')
+    if @architecture.nil?
+      matches = open(PACMAN_CONFIG_PATH).read.match(/^Architecture *=(.*)/)
+      @architecture = matches.nil? ? 'auto' : matches[1].strip
+      if @architecture == 'auto'
+        @architecture = `uname -m`.chomp
       end
     end
     @architecture
@@ -78,7 +75,7 @@ class Action
 
   def self.action_log
     entries = []
-    File.open(PacmanLogFilePath, 'r') do |log_file|
+    File.open(PACMAN_LOG_FILE_PATH, 'r') do |log_file|
       last_time = 0
       log_file.each_line do |line|
         matches =
@@ -111,9 +108,19 @@ class Action
   end
 
   def package_path
-    filename = [@package_name, @old_version_number, Configuration.architecture].join('-') +
-                 '.' + PackageExtension
-    path = PacmanCachePath + '/' + filename
+    [Configuration.architecture, 'any'].lazy.map {|arch|
+      package_path_for_arch(arch)
+    }.find {|path|
+      File.exists?(path)
+    }
+  end
+
+  private
+
+  def package_path_for_arch(arch)
+    filename = [@package_name, @old_version_number, arch].join('-') +
+                 '.' + PACKAGE_EXTENSION
+    path = PACMAN_CACHE_PATH + '/' + filename
     path
   end
 end
